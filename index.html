@@ -1602,8 +1602,9 @@ body.dark .cfg-card{background:#1a2a1a}
         <input type="text" class="finput" id="stkPic" placeholder="Person in charge"/>
       </div>
       <div class="fg">
-        <label class="flabel">Notes</label>
-        <input type="text" class="finput" id="stkNotes" placeholder="Alasan / referensi dokumen"/>
+        <label class="flabel" id="stkNotesLabel">Notes</label>
+        <textarea class="finput" id="stkNotes" rows="2" placeholder="Alasan / referensi dokumen" oninput="onStkNotesInput()" style="resize:none;font-size:13px;line-height:1.5"></textarea>
+        <div id="stkNotesHint" style="font-size:11px;min-height:16px;margin-top:3px"></div>
       </div>
       <div class="form-actions">
         <button class="btn-ghost" onclick="closeOverlay('stockOverlay')">Cancel</button>
@@ -1699,6 +1700,22 @@ function composeLocation(unit, area, equipment) { return [unit, area, equipment]
 function parseLocation(loc) {
   const parts = (loc || '').split(' › ');
   return { unit: parts[0]||'', area: parts[1]||'', equipment: parts[2]||'' };
+}
+
+// Kalau area = Others, coba extract unit/area/equipment dari Notes
+// Format yang dikenali: "Peruntukan: Unit X › Area › Equipment | ..."
+function resolveOthersFromNotes(loc, notes) {
+  if (loc.area !== 'Others' && loc.area !== 'others') return loc;
+  const n = notes || '';
+  // Cari pola "Peruntukan: ..." atau langsung "Unit X › Area › ..."
+  const match = n.match(/(?:Peruntukan\s*:\s*)?(Unit\s*\d+\s*[›>]\s*[^›>|,\n]+(?:[›>]\s*[^›>|,\n]+)?)/i);
+  if (!match) return loc;
+  const extracted = parseLocation(match[1].replace(/>/g, '›').replace(/\s*›\s*/g, ' › ').trim());
+  return {
+    unit:      extracted.unit      || loc.unit,
+    area:      extracted.area      || loc.area,
+    equipment: extracted.equipment || loc.equipment,
+  };
 }
 
 const DEPT_BADGE  = { Mechanical:'b-mech', Electrical:'b-elec', Civil:'b-civil' };
@@ -2395,6 +2412,7 @@ function openStockModalOut() {
 
 function setStkType(type) {
   state.stkType = type;
+  updateStkNotesUI();
   document.getElementById('stkIN').classList.toggle('active', type === 'IN');
   document.getElementById('stkOUT').classList.toggle('active', type === 'OUT');
   const inSec  = document.getElementById('stkInSection');
@@ -2490,6 +2508,7 @@ function onStkOutAreaChange() {
   populateStkOutEquip(unit, area);
   setVal('stkOutEquip','');
   populateStkOutItems(unit, area, '');
+  updateStkNotesUI();
 }
 
 function onStkOutEquipChange() {
@@ -2537,6 +2556,55 @@ function previewStock() {
   }
 }
 
+// ── Notes UI helpers ──
+function isOthersSelected() {
+  if (state.stkType !== 'OUT') return false;
+  const area = getVal('stkOutArea');
+  return area === 'Others' || area === '' || !area;
+}
+
+function onStkNotesInput() { updateStkNotesUI(); }
+
+function updateStkNotesUI() {
+  const lbl      = document.getElementById('stkNotesLabel');
+  const hint     = document.getElementById('stkNotesHint');
+  const notesEl  = document.getElementById('stkNotes');
+  if (!lbl || !hint || !notesEl) return;
+
+  if (state.stkType === 'OUT') {
+    const area  = getVal('stkOutArea');
+    const unit  = getVal('stkOutUnit');
+    const equip = getVal('stkOutEquip');
+    const isOth = !area || area === 'Others';
+
+    if (isOth) {
+      lbl.innerHTML = 'Notes / Peruntukan <span style="color:var(--red)">*</span>';
+      notesEl.placeholder = 'Peruntukan: Unit X › Area › Equipment | Keterangan';
+      // Auto-suggest format kalau unit/equip sudah dipilih
+      const notes = notesEl.value.trim();
+      if (!notes && (unit || equip)) {
+        const suggest = 'Peruntukan: ' + (unit||'Unit ?') + ' › ? › ' + (equip||'?');
+        hint.innerHTML = '<span style="color:var(--text3)">💡 Contoh: <span id="stkNotesSuggest" style="font-family:monospace;cursor:pointer;color:var(--accent)">' + suggest + '</span></span>';
+        const sugEl = document.getElementById('stkNotesSuggest'); if (sugEl) sugEl.onclick = function() { notesEl.value = suggest; onStkNotesInput(); };
+      } else if (notes && !notes.toLowerCase().includes('peruntukan')) {
+        hint.innerHTML = '<span style="color:#b45309">⚠ Tambahkan format: <b>Peruntukan: Unit X › Area › Equipment</b></span>';
+      } else if (notes && notes.toLowerCase().includes('peruntukan')) {
+        hint.innerHTML = '<span style="color:var(--green2)">✓ Format peruntukan terdeteksi</span>';
+      } else {
+        hint.innerHTML = '<span style="color:var(--red);font-size:11px">Wajib diisi saat area = Others</span>';
+      }
+    } else {
+      lbl.innerHTML = 'Notes';
+      notesEl.placeholder = 'Alasan / referensi dokumen (opsional)';
+      hint.innerHTML = '';
+    }
+  } else {
+    lbl.innerHTML = 'Notes';
+    notesEl.placeholder = 'Alasan / referensi dokumen (opsional)';
+    hint.innerHTML = '';
+  }
+}
+
 async function submitStock() {
   const qty   = parseInt(document.getElementById('stkQty').value)  || 0;
   const pic   = document.getElementById('stkPic').value.trim();
@@ -2550,6 +2618,17 @@ async function submitStock() {
   if (!pic)             { errEl.textContent = 'PIC wajib diisi'; return; }
   const cur = state.stkItem.stock;
   if (state.stkType === 'OUT' && qty > cur) { errEl.textContent = 'Stok tidak cukup. Max: ' + cur; return; }
+
+  // Validasi Notes wajib saat OUT + area Others
+  if (state.stkType === 'OUT') {
+    const area = getVal('stkOutArea');
+    const isOth = !area || area === 'Others';
+    if (isOth && !notes) {
+      errEl.textContent = 'Notes / Peruntukan wajib diisi saat area = Others';
+      document.getElementById('stkNotes').focus();
+      return;
+    }
+  }
 
   const btn = document.getElementById('stkSubmitBtn');
   btn.disabled = true; btn.textContent = 'Updating...';
@@ -3465,9 +3544,9 @@ function renderCostPanel() {
       if (fromDate && ts < fromDate) return false;
       if (toDate   && ts > toDate)   return false;
     }
-    // Location filters — pakai item master
+    // Location filters — pakai item master, resolve Others dari notes
     const itm = state.items.find(i => i.itemCode === l.itemCode) || {};
-    const loc  = parseLocation(itm.area || '');
+    const loc  = resolveOthersFromNotes(parseLocation(itm.area || ''), l.notes || '');
     if (unit  && loc.unit      !== unit)  return false;
     if (area  && loc.area      !== area)  return false;
     if (equip && loc.equipment !== equip) return false;
@@ -3475,10 +3554,10 @@ function renderCostPanel() {
     return true;
   });
 
-  // Enrich dengan harga
+  // Enrich dengan harga — resolve Others dari notes
   const enriched = filtered.map(l => {
     const itm   = state.items.find(i => i.itemCode === l.itemCode) || {};
-    const loc   = parseLocation(itm.area || '');
+    const loc   = resolveOthersFromNotes(parseLocation(itm.area || ''), l.notes || '');
     const price = parseFloat(itm.purchasePrice) || 0;
     const qty   = parseInt(l.quantity) || 0;
     return {
@@ -3526,12 +3605,87 @@ function renderCostPanel() {
   const groupRows = Object.values(grouped).sort((a,b) => b.cost - a.cost);
 
   // Render group table
-  document.getElementById('crGroupHead').innerHTML =
-    `<th>${GL[groupBy]||'Grup'}</th><th>Jenis Part</th><th>Total Qty</th><th>Total Biaya</th><th>% dari Total</th>`;
+  const isUnitGroup = groupBy === 'unit';
+  document.getElementById('crGroupHead').innerHTML = isUnitGroup
+    ? `<th>Per Unit / Area</th><th>Jenis Part</th><th>Total Qty</th><th>Total Biaya</th><th>% dari Total</th>`
+    : `<th>${GL[groupBy]||'Grup'}</th><th>Jenis Part</th><th>Total Qty</th><th>Total Biaya</th><th>% dari Total</th>`;
 
   const gb = document.getElementById('crGroupBody');
   if (!groupRows.length) {
     gb.innerHTML = `<tr><td colspan="5" style="text-align:center;padding:24px;color:var(--text3)">Tidak ada data untuk filter ini</td></tr>`;
+  } else if (isUnitGroup) {
+    // Unit mode: render unit row + collapsible area sub-rows
+    let html = '';
+    groupRows.forEach((g, gi) => {
+      const pct  = totalCost > 0 ? ((g.cost/totalCost)*100).toFixed(1) : '0';
+      const barW = Math.min(100, parseFloat(pct));
+
+      // Build area sub-groups for this unit
+      const areaRows = {};
+      enriched.filter(r => r.iUnit === g.key).forEach(r => {
+        const ak = r.iArea || '—';
+        if (!areaRows[ak]) areaRows[ak] = { qty:0, cost:0, items: new Set() };
+        areaRows[ak].qty    += r.qty;
+        areaRows[ak].cost   += r.cost;
+        areaRows[ak].items.add(r.itemCode);
+      });
+      const areaSorted = Object.entries(areaRows).sort((a,b) => b[1].cost - a[1].cost);
+      const subId = `cr-sub-${gi}`;
+
+      // Unit header row (clickable to expand/collapse)
+      html += `<tr style="background:var(--bg3);cursor:pointer;border-top:2px solid var(--border)"
+                   onclick="(function(){const s=document.getElementById('${subId}');const open=s.style.display!=='none';s.style.display=open?'none':'table-row-group';this.querySelector('.cr-arrow').textContent=open?'▶':'▼'}).call(this)">
+        <td style="font-weight:700;color:var(--navy);white-space:nowrap">
+          <span class="cr-arrow" style="font-size:9px;margin-right:6px;color:var(--text3)">▼</span>${esc(g.key)}
+          <span style="font-size:10px;font-family:'IBM Plex Mono',monospace;color:var(--text3);margin-left:6px">${areaSorted.length} area</span>
+        </td>
+        <td style="color:var(--blue);font-weight:600">${g.items.size}</td>
+        <td style="font-weight:700;text-align:center">${g.qty}</td>
+        <td style="font-weight:700;color:var(--red)">Rp ${g.cost.toLocaleString('id-ID')}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:7px">
+            <div style="flex:1;height:6px;background:var(--border);border-radius:3px;overflow:hidden;min-width:50px">
+              <div style="height:100%;background:var(--green2);border-radius:3px;width:${barW}%"></div>
+            </div>
+            <span style="font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--text2);min-width:34px;text-align:right">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+
+      // Area sub-rows (in a tbody so they can be hidden as a group)
+      html += `<tbody id="${subId}">`;
+      areaSorted.forEach(([aKey, aData]) => {
+        const aPct  = g.cost > 0 ? ((aData.cost/g.cost)*100).toFixed(1) : '0';
+        const aBarW = Math.min(100, parseFloat(aPct));
+        html += `<tr style="background:var(--bg2)">
+          <td style="padding-left:32px;font-size:12px;color:var(--text2)">
+            <span style="color:var(--text3);margin-right:4px">└</span>${esc(aKey)}
+          </td>
+          <td style="font-size:12px;color:var(--blue)">${aData.items.size}</td>
+          <td style="font-size:12px;text-align:center;color:var(--text2)">${aData.qty}</td>
+          <td style="font-size:12px;font-weight:600;color:var(--red)">Rp ${aData.cost.toLocaleString('id-ID')}</td>
+          <td>
+            <div style="display:flex;align-items:center;gap:7px">
+              <div style="flex:1;height:4px;background:var(--border);border-radius:2px;overflow:hidden;min-width:40px">
+                <div style="height:100%;background:var(--accent);border-radius:2px;width:${aBarW}%"></div>
+              </div>
+              <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--text3);min-width:34px;text-align:right">${aPct}% unit</span>
+            </div>
+          </td>
+        </tr>`;
+      });
+      html += `</tbody>`;
+    });
+
+    // Total row
+    html += `<tr style="background:var(--green-light);font-weight:700;border-top:2px solid var(--green)">
+      <td colspan="2" style="color:var(--navy)">TOTAL</td>
+      <td style="text-align:center">${enriched.reduce((s,r)=>s+r.qty,0)}</td>
+      <td style="color:var(--red)">Rp ${totalCost.toLocaleString('id-ID')}</td>
+      <td>100%</td>
+    </tr>`;
+    gb.innerHTML = html;
+
   } else {
     gb.innerHTML = groupRows.map(g => {
       const pct  = totalCost > 0 ? ((g.cost/totalCost)*100).toFixed(1) : '0';
