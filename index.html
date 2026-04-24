@@ -2033,9 +2033,9 @@ async function submitStock() {
   const unitId  = state.stkType === 'OUT' ? (document.getElementById('stkUnit2')?.value  || '') : '';
   const areaId  = state.stkType === 'OUT' ? (document.getElementById('stkArea')?.value   || '') : '';
   const equipId = state.stkType === 'OUT' ? (document.getElementById('stkEquip')?.value  || '') : '';
-  const unitName  = unitId  ? (state.units.find(u=>u.id===unitId)?.name   || '') : '';
-  const areaName  = areaId  ? (state.areas.find(a=>a.id===areaId)?.name   || '') : '';
-  const equipName = equipId ? (state.equipment.find(e=>e.id===equipId)?.name || '') : '';
+const unitName  = unitId  ? (state.units.find(u => String(u.id||u.Id||'').trim() === unitId)?.name   || unitId) : '';
+const areaName  = areaId  ? (state.areas.find(a => String(a.id||a.Id||'').trim() === areaId)?.name   || areaId) : '';
+const equipName = equipId ? (state.equipment.find(e => String(e.id||e.Id||'').trim() === equipId)?.name || equipId) : '';
 
   const btn = document.getElementById('stkSubmitBtn');
   btn.disabled = true; btn.textContent = 'Updating...';
