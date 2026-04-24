@@ -1563,12 +1563,9 @@ function renderUsageChart() {
   const equipId = document.getElementById('usageEquip')?.value || '';
   const days    = parseInt(document.getElementById('usagePeriod')?.value || '30');
 
-  // Filter log: hanya OUT, dalam periode
   const cutoff = days > 0 ? Date.now() - days * 86400000 : 0;
   let logs = state.log.filter(l => l.txType === 'OUT');
   if (days > 0) logs = logs.filter(l => new Date(l.timestamp).getTime() >= cutoff);
-
-  // Filter by unit/area/equipment
   if (unitId)  logs = logs.filter(l => l.unitId  === unitId);
   if (areaId)  logs = logs.filter(l => l.areaId  === areaId);
   if (equipId) logs = logs.filter(l => l.equipId === equipId);
@@ -1578,7 +1575,7 @@ function renderUsageChart() {
     plugins: { legend: { display: false } },
   };
 
-  // Chart 1: Top 10 item paling banyak dipakai
+  // Chart 1: Top 10 item
   const byItem = {};
   logs.forEach(l => {
     const nm = (state.items.find(i => i.itemCode === l.itemCode)?.itemName || l.itemCode);
@@ -1586,12 +1583,21 @@ function renderUsageChart() {
   });
   const sortedItems = Object.entries(byItem).sort((a,b) => b[1]-a[1]).slice(0,10);
   destroyChart('cUsageTop');
-  if (sortedItems.length) {
-    charts.cUsageTop = new Chart(document.getElementById('cUsageTop'), {
-      type: 'bar',
-      data: { labels: sortedItems.map(a=>a[0]), datasets: [{ data: sortedItems.map(a=>a[1]), backgroundColor: CHART_COLORS, borderRadius: 5, borderWidth: 0 }] },
-      options: { ...dfOpts, scales: { y: { ticks:{color:'#7a9a7a'}, grid:{color:'#d4e0d4'} }, x: { ticks:{color:'#3a5a3a',maxRotation:30}, grid:{display:false} } } }
-    });
+  const canvasTop = document.getElementById('cUsageTop');
+  if (canvasTop) {
+    if (sortedItems.length) {
+      charts.cUsageTop = new Chart(canvasTop, {
+        type: 'bar',
+        data: { labels: sortedItems.map(a=>a[0]), datasets: [{ data: sortedItems.map(a=>a[1]), backgroundColor: CHART_COLORS, borderRadius: 5, borderWidth: 0 }] },
+        options: { ...dfOpts, scales: { y: { ticks:{color:'#7a9a7a'}, grid:{color:'#d4e0d4'} }, x: { ticks:{color:'#3a5a3a',maxRotation:30}, grid:{display:false} } } }
+      });
+    } else {
+      const ctx = canvasTop.getContext('2d');
+      ctx.clearRect(0, 0, canvasTop.width, canvasTop.height);
+      ctx.fillStyle = '#7a9a7a'; ctx.font = '13px IBM Plex Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Tidak ada data Stock OUT pada periode / filter ini', canvasTop.width / 2, canvasTop.height / 2);
+    }
   }
 
   // Chart 2: Pemakaian per Unit
@@ -1602,12 +1608,21 @@ function renderUsageChart() {
   });
   const sortedUnits = Object.entries(byUnit).sort((a,b) => b[1]-a[1]);
   destroyChart('cUsageUnit');
-  if (sortedUnits.length) {
-    charts.cUsageUnit = new Chart(document.getElementById('cUsageUnit'), {
-      type: 'doughnut',
-      data: { labels: sortedUnits.map(a=>a[0]), datasets: [{ data: sortedUnits.map(a=>a[1]), backgroundColor: CHART_COLORS, borderWidth: 0, hoverOffset: 6 }] },
-      options: { ...dfOpts, cutout: '58%', plugins: { legend: { display: true, position: 'right', labels: { color:'#3a5a3a', font:{size:11}, boxWidth:10, padding:8 } } } }
-    });
+  const canvasUnit = document.getElementById('cUsageUnit');
+  if (canvasUnit) {
+    if (sortedUnits.length) {
+      charts.cUsageUnit = new Chart(canvasUnit, {
+        type: 'doughnut',
+        data: { labels: sortedUnits.map(a=>a[0]), datasets: [{ data: sortedUnits.map(a=>a[1]), backgroundColor: CHART_COLORS, borderWidth: 0, hoverOffset: 6 }] },
+        options: { ...dfOpts, cutout: '58%', plugins: { legend: { display: true, position: 'right', labels: { color:'#3a5a3a', font:{size:11}, boxWidth:10, padding:8 } } } }
+      });
+    } else {
+      const ctx = canvasUnit.getContext('2d');
+      ctx.clearRect(0, 0, canvasUnit.width, canvasUnit.height);
+      ctx.fillStyle = '#7a9a7a'; ctx.font = '12px IBM Plex Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Tidak ada data', canvasUnit.width / 2, canvasUnit.height / 2);
+    }
   }
 
   // Chart 3: Pemakaian per Equipment
@@ -1618,12 +1633,21 @@ function renderUsageChart() {
   });
   const sortedEquips = Object.entries(byEquip).sort((a,b) => b[1]-a[1]).slice(0,8);
   destroyChart('cUsageEquip');
-  if (sortedEquips.length) {
-    charts.cUsageEquip = new Chart(document.getElementById('cUsageEquip'), {
-      type: 'bar',
-      data: { labels: sortedEquips.map(a=>a[0]), datasets: [{ data: sortedEquips.map(a=>a[1]), backgroundColor: '#2b6cb8', borderRadius: 4, borderWidth: 0 }] },
-      options: { ...dfOpts, indexAxis: 'y', scales: { x: { ticks:{color:'#7a9a7a'}, grid:{color:'#d4e0d4'} }, y: { ticks:{color:'#3a5a3a',font:{size:11}}, grid:{display:false} } } }
-    });
+  const canvasEquip = document.getElementById('cUsageEquip');
+  if (canvasEquip) {
+    if (sortedEquips.length) {
+      charts.cUsageEquip = new Chart(canvasEquip, {
+        type: 'bar',
+        data: { labels: sortedEquips.map(a=>a[0]), datasets: [{ data: sortedEquips.map(a=>a[1]), backgroundColor: '#2b6cb8', borderRadius: 4, borderWidth: 0 }] },
+        options: { ...dfOpts, indexAxis: 'y', scales: { x: { ticks:{color:'#7a9a7a'}, grid:{color:'#d4e0d4'} }, y: { ticks:{color:'#3a5a3a',font:{size:11}}, grid:{display:false} } } }
+      });
+    } else {
+      const ctx = canvasEquip.getContext('2d');
+      ctx.clearRect(0, 0, canvasEquip.width, canvasEquip.height);
+      ctx.fillStyle = '#7a9a7a'; ctx.font = '12px IBM Plex Sans, sans-serif';
+      ctx.textAlign = 'center';
+      ctx.fillText('Tidak ada data', canvasEquip.width / 2, canvasEquip.height / 2);
+    }
   }
 }
 
@@ -2369,6 +2393,26 @@ async function deleteItem(code) {
 // Sesuai struktur GAS getItems() yang mengembalikan minStock dari kolom K
 // ─────────────────────────────────────────────────────
 function loadDemo() {
+  // Demo units / areas / equipment
+  state.units = [
+    { id: 'U1', name: 'Unit Produksi A' },
+    { id: 'U2', name: 'Unit Produksi B' },
+    { id: 'U3', name: 'Utility' },
+  ];
+  state.areas = [
+    { id: 'A1', name: 'Area Mixing',    unitId: 'U1' },
+    { id: 'A2', name: 'Area Packing',   unitId: 'U1' },
+    { id: 'A3', name: 'Area Boiler',    unitId: 'U3' },
+    { id: 'A4', name: 'Area Pressing',  unitId: 'U2' },
+  ];
+  state.equipment = [
+    { id: 'E1', name: 'Mixer CTP-1',   areaId: 'A1', model: 'MX-200' },
+    { id: 'E2', name: 'Mixer CTP-2',   areaId: 'A1', model: 'MX-200' },
+    { id: 'E3', name: 'Conveyor PK-1', areaId: 'A2', model: 'CV-50' },
+    { id: 'E4', name: 'Boiler #1',     areaId: 'A3', model: 'BL-500' },
+    { id: 'E5', name: 'Press #1',      areaId: 'A4', model: 'PR-100' },
+  ];
+
   state.items = [
     { id:1,  itemCode:'MECH-001', itemName:'Bearing',        brand:'SKF',       spec:'6205 2RS 25x52x15mm',    itemType:'Mechanical', itemClass:'Spare Part',  movingType:'Fast Moving', purchasePrice:45000,   stock:12, minStock:5,  uom:'pcs',    pic:'Ahmad', lastUpdate:'2025-01-10', notes:'' },
     { id:2,  itemCode:'MECH-002', itemName:'V-Belt',         brand:'Gates',     spec:'A60 13x1524mm',          itemType:'Mechanical', itemClass:'Consumable',  movingType:'Fast Moving', purchasePrice:85000,   stock:3,  minStock:5,  uom:'pcs',    pic:'Ahmad', lastUpdate:'2025-01-08', notes:'Stok menipis' },
@@ -2386,18 +2430,23 @@ function loadDemo() {
     { id:14, itemCode:'INST-001', itemName:'Sensor Suhu',     brand:'Autonics', spec:'PT100 RTD -50~200°C IP67', itemType:'Instrument', itemClass:'Spare Part',  movingType:'Fast Moving', purchasePrice:450000,  stock:2,  minStock:2,  uom:'pcs',    pic:'Sari',  lastUpdate:'2025-01-11', notes:'' },
     { id:15, itemCode:'MECH-007', itemName:'Oil Seal',        brand:'NOK',      spec:'35x52x8mm NBR',           itemType:'Mechanical', itemClass:'Consumable',  movingType:'Fast Moving', purchasePrice:25000,   stock:4,  minStock:5,  uom:'pcs',    pic:'Ahmad', lastUpdate:'2025-01-09', notes:'' },
   ];
+
   state.log = [
-    { timestamp:'2025-01-10 09:15', itemCode:'MECH-001', txType:'IN',  quantity:10, remainingStock:12, pic:'Ahmad', notes:'PR-001 Restock' },
-    { timestamp:'2025-01-08 14:30', itemCode:'MECH-002', txType:'OUT', quantity:3,  remainingStock:3,  pic:'Ahmad', notes:'Maintenance rutin CTP-1' },
-    { timestamp:'2025-01-11 10:00', itemCode:'ELEC-001', txType:'IN',  quantity:5,  remainingStock:8,  pic:'Rudi',  notes:'Restock Januari' },
-    { timestamp:'2025-01-07 08:45', itemCode:'ELEC-002', txType:'OUT', quantity:6,  remainingStock:4,  pic:'Sari',  notes:'Repair panel Unit 1' },
-    { timestamp:'2025-01-13 11:20', itemCode:'MECH-006', txType:'OUT', quantity:2,  remainingStock:1,  pic:'Budi',  notes:'Emergency replacement' },
-    { timestamp:'2025-01-12 08:00', itemCode:'MECH-005', txType:'IN',  quantity:10, remainingStock:10, pic:'Ahmad', notes:'Restock Unit 2' },
-    { timestamp:'2025-01-11 15:30', itemCode:'MECH-003', txType:'OUT', quantity:2,  remainingStock:18, pic:'Budi',  notes:'Preventive maintenance bearing CTP' },
-    { timestamp:'2025-01-09 09:00', itemCode:'INST-001', txType:'OUT', quantity:1,  remainingStock:2,  pic:'Sari',  notes:'Penggantian sensor CTP-2' },
+    { timestamp:'2025-01-10 09:15', itemCode:'MECH-001', txType:'IN',  quantity:10, remainingStock:12, pic:'Ahmad', notes:'PR-001 Restock',           unitId:'',  areaId:'',  equipId:'',  unitName:'',              areaName:'',        equipName:'' },
+    { timestamp:'2025-01-08 14:30', itemCode:'MECH-002', txType:'OUT', quantity:3,  remainingStock:3,  pic:'Ahmad', notes:'Maintenance rutin CTP-1',   unitId:'U1', areaId:'A1', equipId:'E1', unitName:'Unit Produksi A', areaName:'Area Mixing',  equipName:'Mixer CTP-1' },
+    { timestamp:'2025-01-11 10:00', itemCode:'ELEC-001', txType:'IN',  quantity:5,  remainingStock:8,  pic:'Rudi',  notes:'Restock Januari',           unitId:'',  areaId:'',  equipId:'',  unitName:'',              areaName:'',        equipName:'' },
+    { timestamp:'2025-01-07 08:45', itemCode:'ELEC-002', txType:'OUT', quantity:6,  remainingStock:4,  pic:'Sari',  notes:'Repair panel Unit 1',       unitId:'U1', areaId:'A2', equipId:'E3', unitName:'Unit Produksi A', areaName:'Area Packing', equipName:'Conveyor PK-1' },
+    { timestamp:'2025-01-13 11:20', itemCode:'MECH-006', txType:'OUT', quantity:2,  remainingStock:1,  pic:'Budi',  notes:'Emergency replacement',     unitId:'U2', areaId:'A4', equipId:'E5', unitName:'Unit Produksi B', areaName:'Area Pressing','equipName':'Press #1' },
+    { timestamp:'2025-01-12 08:00', itemCode:'MECH-005', txType:'IN',  quantity:10, remainingStock:10, pic:'Ahmad', notes:'Restock Unit 2',            unitId:'',  areaId:'',  equipId:'',  unitName:'',              areaName:'',        equipName:'' },
+    { timestamp:'2025-01-11 15:30', itemCode:'MECH-003', txType:'OUT', quantity:2,  remainingStock:18, pic:'Budi',  notes:'Preventive maintenance',    unitId:'U1', areaId:'A1', equipId:'E2', unitName:'Unit Produksi A', areaName:'Area Mixing',  equipName:'Mixer CTP-2' },
+    { timestamp:'2025-01-09 09:00', itemCode:'INST-001', txType:'OUT', quantity:1,  remainingStock:2,  pic:'Sari',  notes:'Penggantian sensor CTP-2',  unitId:'U1', areaId:'A1', equipId:'E2', unitName:'Unit Produksi A', areaName:'Area Mixing',  equipName:'Mixer CTP-2' },
+    { timestamp:'2025-01-14 10:00', itemCode:'MECH-007', txType:'OUT', quantity:4,  remainingStock:0,  pic:'Ahmad', notes:'Overhaul Boiler #1',        unitId:'U3', areaId:'A3', equipId:'E4', unitName:'Utility',        areaName:'Area Boiler',  equipName:'Boiler #1' },
+    { timestamp:'2025-01-14 13:00', itemCode:'ELEC-005', txType:'OUT', quantity:2,  remainingStock:3,  pic:'Rudi',  notes:'Panel Boiler trip',         unitId:'U3', areaId:'A3', equipId:'E4', unitName:'Utility',        areaName:'Area Boiler',  equipName:'Boiler #1' },
+    { timestamp:'2025-01-15 08:30', itemCode:'MECH-001', txType:'OUT', quantity:2,  remainingStock:10, pic:'Budi',  notes:'Ganti bearing conveyor',    unitId:'U1', areaId:'A2', equipId:'E3', unitName:'Unit Produksi A', areaName:'Area Packing', equipName:'Conveyor PK-1' },
+    { timestamp:'2025-01-15 14:00', itemCode:'MECH-004', txType:'OUT', quantity:1,  remainingStock:1,  pic:'Ahmad', notes:'Kopling press slip',         unitId:'U2', areaId:'A4', equipId:'E5', unitName:'Unit Produksi B', areaName:'Area Pressing','equipName':'Press #1' },
   ];
+
   document.getElementById('syncStatus').textContent = 'Demo mode — edit API_URL untuk data live';
-  // FIX: clear localStorage minStock agar tidak override nilai minStock dari demo data
   state.minStock = {};
   localStorage.removeItem('mw_minstock');
   populateFilterDropdowns(); renderAll();
