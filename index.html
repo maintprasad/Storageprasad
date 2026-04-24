@@ -1144,7 +1144,7 @@ body.dark .cfg-card{background:#1a2a1a}
 // CONSTANTS & STATE
 // ─────────────────────────────────────────────────────
 // ▼▼▼ GANTI URL INI SETELAH DEPLOY APPS SCRIPT ▼▼▼
-const API_URL = 'https://script.google.com/macros/s/AKfycbyb71vEKC6XGILeBWMupzxPLOplc4eeM3cYtj1oq6vqqbpfs8AGOQLbJuERLe0JGp37/exec';
+const API_URL = 'https://script.google.com/macros/s/AKfycbyHaOyKncP7XWEwwALuXPhxos-ZtbO6YUDJVfqCoGDQ2D-4o7SikAM7X4ieKI419Mlu/exec';
 // ▲▲▲ ────────────────────────────────────────────────
 
 const CHART_COLORS = ['#1a3a6b','#4a9e3f','#2b6cb8','#2a7a5a','#7ab648','#3a8a30','#c0392b','#f39c12'];
@@ -2043,10 +2043,12 @@ const equipName = equipId ? (state.equipment.find(e => String(e.id||e.Id||'').tr
   try {
     const _hasApi = API_URL && !API_URL.includes('GANTI');
     if (_hasApi) {
-      const res = await apiCall('updateStock', 'POST', {
-        itemCode: state.stkItem.itemCode, txType: state.stkType, quantity: qty, pic, notes,
-        unitId, areaId, equipId, unitName, areaName, equipName
-      });
+      const payload = {
+  itemCode: state.stkItem.itemCode, txType: state.stkType, quantity: qty, pic, notes,
+  unitId, areaId, equipId, unitName, areaName, equipName
+};
+const url = API_URL + '?action=updateStock&_body=' + encodeURIComponent(JSON.stringify(payload));
+const res = await fetch(url).then(r => r.json());
       if (!res.success) throw new Error(res.message || 'Gagal update stock');
       toast('Stock ' + state.stkType + ': ' + qty + ' ' + (state.stkItem.uom||''), 'success');
       await syncAll();
